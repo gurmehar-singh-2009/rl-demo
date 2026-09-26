@@ -166,6 +166,11 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked
 
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
       - name: Install pygbag
         run: uv pip install pygbag
 
