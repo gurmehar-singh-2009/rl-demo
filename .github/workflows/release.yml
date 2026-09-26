@@ -33,10 +33,10 @@ jobs:
         uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-      
-      - name: Install dependencies
-        run: uv sync --locked
-        
+
+      - name: Install Python
+        run: uv python install 3.12
+
       - name: Install dependencies
         run: uv sync --locked
 
@@ -75,9 +75,9 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Install dependencies
-        run: uv sync --locked
-        
+      - name: Install Python
+        run: uv python install 3.12
+
       - name: Install dependencies
         run: uv sync --locked
 
@@ -114,10 +114,10 @@ jobs:
         uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-      
-      - name: Install dependencies
-        run: uv sync --locked
-        
+
+      - name: Install Python
+        run: uv python install 3.12
+
       - name: Install dependencies
         run: uv sync --locked
 
@@ -160,17 +160,31 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version-file: ".python-version"
+      - name: Install Python
+        run: uv python install 3.12
 
       - name: Install dependencies
         run: uv sync --locked
 
-      - name: Install web dependencies
+      - name: Install pygbag
+        run: uv pip install pygbag
+
+      # Pygbag should receive ONLY the actual game directory.
+      # Do not give it "." because that includes .venv.
+      - name: Prepare web build
         run: |
-          uv pip install pygbag
+          rm -rf web_build
+          mkdir -p web_build
+
+          cp main.py web_build/
+
+          if [ -d src/rl_demo ]; then
+            cp -r src/rl_demo web_build/rl_demo
+          fi
+
+          if [ -d assets ]; then
+            cp -r assets web_build/assets
+          fi
 
       - name: Build web version
         run: |
@@ -179,12 +193,12 @@ jobs:
             --template default \
             --width 1280 \
             --height 720 \
-            .
+            web_build
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: build/web
+          path: web_build/build/web
 
 
   # ============================================================
