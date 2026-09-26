@@ -1,0 +1,236 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Windows
+  # ─────────────────────────────────────────────
+
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build
+        run: |
+          pyinstaller ^
+            --name RL-Demo ^
+            --onefile ^
+            --windowed ^
+            main.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rl-demo-windows
+          path: dist/RL-Demo.exe
+
+
+  # ─────────────────────────────────────────────
+  # Linux
+  # ─────────────────────────────────────────────
+
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build
+        run: |
+          pyinstaller \
+            --name RL-Demo \
+            --onefile \
+            main.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rl-demo-linux
+          path: dist/RL-Demo
+
+
+  # ─────────────────────────────────────────────
+  # macOS
+  # ─────────────────────────────────────────────
+
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build
+        run: |
+          pyinstaller \
+            --name RL-Demo \
+            --windowed \
+            main.py
+
+      - name: Package
+        run: |
+          cd dist
+          zip -r RL-Demo-macos.zip RL-Demo.app
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rl-demo-macos
+          path: dist/RL-Demo-macos.zip
+
+
+  # ─────────────────────────────────────────────
+  # Web / GitHub Pages
+  # ─────────────────────────────────────────────
+
+  build-web:
+    name: Build Web
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pygbag
+        run: |
+          python -m pip install --upgrade pip
+          pip install pygbag
+
+      - name: Build WebAssembly application
+        run: |
+          python -m pygbag \
+            --build \
+            --template default \
+            --width 1280 \
+            --height 720 \
+            .
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+
+  # ─────────────────────────────────────────────
+  # Deploy GitHub Pages
+  # ─────────────────────────────────────────────
+
+  deploy-pages:
+    name: Deploy GitHub Pages
+    needs: build-web
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+
+  # ─────────────────────────────────────────────
+  # GitHub Release
+  # ─────────────────────────────────────────────
+
+  release:
+    name: Create Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - build-windows
+      - build-linux
+      - build-macos
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Windows
+        uses: actions/download-artifact@v4
+        with:
+          name: rl-demo-windows
+          path: release/windows
+
+      - name: Download Linux
+        uses: actions/download-artifact@v4
+        with:
+          name: rl-demo-linux
+          path: release/linux
+
+      - name: Download macOS
+        uses: actions/download-artifact@v4
+        with:
+          name: rl-demo-macos
+          path: release/macos
+
+      - name: Package Linux
+        run: |
+          tar -czf release/RL-Demo-linux.tar.gz \
+            -C release/linux RL-Demo
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/windows/RL-Demo.exe
+            release/RL-Demo-linux.tar.gz
+            release/macos/RL-Demo-macos.zip
+          generate_release_notes: true
