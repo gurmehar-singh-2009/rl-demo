@@ -175,10 +175,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
+      # --------------------------------------------------------
+      # NOTE: previously installed from git main
+      # ("pygbag @ git+https://github.com/pygame-web/pygbag.git"),
+      # which resolves to an unreleased dev version (e.g. 0.9.4)
+      # whose default CDN path (cdn/0.9.4/) is not published,
+      # causing an infinite 404 retry loop when fetching
+      # default.tmpl. Installing the published PyPI release
+      # avoids this, since its version maps to a real, published
+      # https://pygame-web.github.io/archives/<version>/ folder.
+      # --------------------------------------------------------
+
       - name: Install Pygbag
         run: |
-          uv pip install \
-            "pygbag @ git+https://github.com/pygame-web/pygbag.git"
+          uv pip install pygbag
 
       # --------------------------------------------------------
       # Create a clean directory for Pygbag.
