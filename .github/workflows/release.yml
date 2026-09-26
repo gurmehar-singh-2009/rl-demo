@@ -16,6 +16,7 @@ permissions:
   pages: write
   id-token: write
 
+
 jobs:
   # ============================================================
   # WINDOWS
@@ -27,10 +28,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v10
         with:
           enable-cache: true
 
@@ -52,10 +53,11 @@ jobs:
             main.py
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: RL-Demo-windows
           path: dist/RL-Demo.exe
+          if-no-files-found: error
 
 
   # ============================================================
@@ -68,10 +70,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v10
         with:
           enable-cache: true
 
@@ -92,10 +94,11 @@ jobs:
             main.py
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: RL-Demo-linux
           path: dist/RL-Demo
+          if-no-files-found: error
 
 
   # ============================================================
@@ -108,10 +111,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v10
         with:
           enable-cache: true
 
@@ -137,10 +140,11 @@ jobs:
           zip -r RL-Demo-macos.zip RL-Demo.app
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: RL-Demo-macos
           path: dist/RL-Demo-macos.zip
+          if-no-files-found: error
 
 
   # ============================================================
@@ -153,10 +157,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v10
         with:
           enable-cache: true
 
@@ -171,11 +175,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: Install pygbag
-        run: uv pip install pygbag
+      - name: Install Pygbag
+        run: |
+          uv pip install \
+            "pygbag @ git+https://github.com/pygame-web/pygbag.git"
 
-      # Pygbag should receive ONLY the actual game directory.
-      # Do not give it "." because that includes .venv.
+      # --------------------------------------------------------
+      # Create a clean directory for Pygbag.
+      #
+      # DO NOT build "." because the repository root contains
+      # .venv, and pygbag will recursively inspect it.
+      # --------------------------------------------------------
+
       - name: Prepare web build
         run: |
           rm -rf web_build
@@ -195,13 +206,13 @@ jobs:
         run: |
           uv run pygbag \
             --build \
-            --template default \
+            --template default.tmpl \
             --width 1280 \
             --height 720 \
             web_build
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: web_build/build/web
 
@@ -213,6 +224,9 @@ jobs:
   deploy-pages:
     name: Deploy GitHub Pages
     needs: build-web
+
+    # Only deploy the actual main branch.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     runs-on: ubuntu-latest
 
@@ -233,7 +247,8 @@ jobs:
   release:
     name: GitHub Release
 
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Only run for tags like v0.1.0, v1.0.0, etc.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
 
     needs:
       - build-windows
@@ -243,23 +258,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # --------------------------------------------------------
+      # Download native artifacts
+      # --------------------------------------------------------
+
       - name: Download Windows
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: RL-Demo-windows
           path: release/windows
 
       - name: Download Linux
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: RL-Demo-linux
           path: release/linux
 
       - name: Download macOS
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: RL-Demo-macos
           path: release/macos
+
+      # --------------------------------------------------------
+      # Package Linux
+      # --------------------------------------------------------
 
       - name: Package Linux
         run: |
@@ -268,8 +291,12 @@ jobs:
             -C release/linux \
             RL-Demo
 
+      # --------------------------------------------------------
+      # Create GitHub Release
+      # --------------------------------------------------------
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           files: |
