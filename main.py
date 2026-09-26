@@ -1,5 +1,7 @@
 import asyncio
+
 import pygame
+
 
 async def main() -> None:
     pygame.init()
@@ -13,7 +15,6 @@ async def main() -> None:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-
 
         pygame.display.flip()
 

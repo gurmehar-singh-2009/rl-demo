@@ -1,4 +1,4 @@
-name: Build & Deploy
+name: Build RL Demo
 
 on:
   push:
@@ -6,6 +6,8 @@ on:
       - main
     tags:
       - "v*"
+
+  pull_request:
 
   workflow_dispatch:
 
@@ -15,70 +17,80 @@ permissions:
   id-token: write
 
 jobs:
-  # ─────────────────────────────────────────────
-  # Windows
-  # ─────────────────────────────────────────────
+  # ============================================================
+  # WINDOWS
+  # ============================================================
 
   build-windows:
-    name: Build Windows
+    name: Windows
     runs-on: windows-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version-file: ".python-version"
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
+        run: uv sync --locked
+
+      - name: Install PyInstaller
+        run: uv pip install pyinstaller
 
       - name: Build
         run: |
-          pyinstaller ^
-            --name RL-Demo ^
-            --onefile ^
-            --windowed ^
+          uv run pyinstaller `
+            --name RL-Demo `
+            --onefile `
+            --windowed `
             main.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rl-demo-windows
+          name: RL-Demo-windows
           path: dist/RL-Demo.exe
 
 
-  # ─────────────────────────────────────────────
-  # Linux
-  # ─────────────────────────────────────────────
+  # ============================================================
+  # LINUX
+  # ============================================================
 
   build-linux:
-    name: Build Linux
+    name: Linux
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version-file: ".python-version"
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
+        run: uv sync --locked
+
+      - name: Install PyInstaller
+        run: uv pip install pyinstaller
 
       - name: Build
         run: |
-          pyinstaller \
+          uv run pyinstaller \
             --name RL-Demo \
             --onefile \
             main.py
@@ -86,36 +98,41 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rl-demo-linux
+          name: RL-Demo-linux
           path: dist/RL-Demo
 
 
-  # ─────────────────────────────────────────────
-  # macOS
-  # ─────────────────────────────────────────────
+  # ============================================================
+  # MACOS
+  # ============================================================
 
   build-macos:
-    name: Build macOS
+    name: macOS
     runs-on: macos-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version-file: ".python-version"
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
+        run: uv sync --locked
+
+      - name: Install PyInstaller
+        run: uv pip install pyinstaller
 
       - name: Build
         run: |
-          pyinstaller \
+          uv run pyinstaller \
             --name RL-Demo \
             --windowed \
             main.py
@@ -128,35 +145,39 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rl-demo-macos
+          name: RL-Demo-macos
           path: dist/RL-Demo-macos.zip
 
 
-  # ─────────────────────────────────────────────
-  # Web / GitHub Pages
-  # ─────────────────────────────────────────────
+  # ============================================================
+  # WEB / GITHUB PAGES
+  # ============================================================
 
   build-web:
-    name: Build Web
+    name: Web
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version-file: ".python-version"
 
-      - name: Install pygbag
+      - name: Install web dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install pygbag
+          uv pip install pygbag
 
-      - name: Build WebAssembly application
+      - name: Build web version
         run: |
-          python -m pygbag \
+          uv run pygbag \
             --build \
             --template default \
             --width 1280 \
@@ -164,18 +185,19 @@ jobs:
             .
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: build/web
 
 
-  # ─────────────────────────────────────────────
-  # Deploy GitHub Pages
-  # ─────────────────────────────────────────────
+  # ============================================================
+  # DEPLOY GITHUB PAGES
+  # ============================================================
 
   deploy-pages:
     name: Deploy GitHub Pages
     needs: build-web
+
     runs-on: ubuntu-latest
 
     environment:
@@ -188,13 +210,15 @@ jobs:
         uses: actions/deploy-pages@v4
 
 
-  # ─────────────────────────────────────────────
-  # GitHub Release
-  # ─────────────────────────────────────────────
+  # ============================================================
+  # GITHUB RELEASE
+  # ============================================================
 
   release:
-    name: Create Release
+    name: GitHub Release
+
     if: startsWith(github.ref, 'refs/tags/v')
+
     needs:
       - build-windows
       - build-linux
@@ -206,31 +230,33 @@ jobs:
       - name: Download Windows
         uses: actions/download-artifact@v4
         with:
-          name: rl-demo-windows
+          name: RL-Demo-windows
           path: release/windows
 
       - name: Download Linux
         uses: actions/download-artifact@v4
         with:
-          name: rl-demo-linux
+          name: RL-Demo-linux
           path: release/linux
 
       - name: Download macOS
         uses: actions/download-artifact@v4
         with:
-          name: rl-demo-macos
+          name: RL-Demo-macos
           path: release/macos
 
       - name: Package Linux
         run: |
-          tar -czf release/RL-Demo-linux.tar.gz \
-            -C release/linux RL-Demo
+          tar -czf \
+            release/RL-Demo-linux.tar.gz \
+            -C release/linux \
+            RL-Demo
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          generate_release_notes: true
           files: |
             release/windows/RL-Demo.exe
             release/RL-Demo-linux.tar.gz
             release/macos/RL-Demo-macos.zip
-          generate_release_notes: true
